@@ -2,3 +2,4 @@ openai
 pyautogen
 packaging
 python-dotenv
+pymupdf
