@@ -1,2 +1,4 @@
 .*
 !.gitignore
+scenario
+**/__pycache__/**
