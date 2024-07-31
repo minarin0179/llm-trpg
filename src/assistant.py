@@ -1,7 +1,9 @@
+import json
 from openai import OpenAI
 from dotenv import load_dotenv
 from typing_extensions import override
 from openai import AssistantEventHandler
+from diceroll import diceroll
 
 load_dotenv()
 client = OpenAI()
@@ -44,8 +46,7 @@ shared_prompt = f"""
 GM_instruction = f"""
 あなたはTRPGのゲームマスターです.
 今から{system}のシナリオを一緒に遊びましょう．
-あなたの他にも複数のGMが居るので彼らと相談しながら，
-GM達の意見を取りまとめてあなたが総意をプレイヤーに伝えてください．
+ダイスロールを実行する際は必ずフルダイスの内容を確認して，私が振るように伝えてから実行してください．
 {scenario_text}
 {character_text}
 {shared_prompt}
@@ -87,22 +88,12 @@ message = client.beta.threads.messages.create(
 )
 
 
-# async
 class EventHandler(AssistantEventHandler):
-    @override
-    def on_text_created(self, text) -> None:
-        print(f"\nassistant > ", end="", flush=True)
-
-    @override
-    def on_text_delta(self, delta, snapshot):
-        print(delta.value, end="", flush=True)
-
     @override
     def on_event(self, event):
         # Retrieve events that are denoted with 'requires_action'
         # since these will have our tool_calls
         if event.event == "thread.run.requires_action":
-            print("action!")
             run_id = event.data.id  # Retrieve the run ID from the event data
             self.handle_requires_action(event.data, run_id)
 
@@ -111,28 +102,32 @@ class EventHandler(AssistantEventHandler):
 
         for tool in data.required_action.submit_tool_outputs.tool_calls:
             if tool.function.name == "diceroll":
-                tool_outputs.append({"tool_call_id": tool.id, "output": "6"})
+                print("ダイスロールを実行中…")
+                command = json.loads(tool.function.arguments)["command"]
+                result = diceroll(command)
+                if result.get("ok", "false") != "true":
+                    print("ダイスロールの実行中に問題が発生しました.")
+                    return
+                print(result["text"])
+                tool_outputs.append(
+                    {"tool_call_id": tool.id, "output": json.dumps(result)}
+                )
 
         # Submit all tool_outputs at the same time
         self.submit_tool_outputs(tool_outputs, run_id)
 
     def submit_tool_outputs(self, tool_outputs, run_id):
-        client.beta.threads.runs.submit_tool_outputs(
-            thread_id=self.current_run.thread_id,
-            run_id=run_id,
-            tool_outputs=tool_outputs,
-        )
-
         # Use the submit_tool_outputs_stream helper
-        # with client.beta.threads.runs.submit_tool_outputs_stream(
-        #     thread_id=self.current_run.thread_id,
-        #     run_id=self.current_run.id,
-        #     tool_outputs=tool_outputs,
-        #     event_handler=EventHandler(),
-        # ) as stream:
-        #     for text in stream.text_deltas:
-        #         print(text, end="", flush=True)
-        #     print()
+        with client.beta.threads.runs.submit_tool_outputs_stream(
+            thread_id=self.current_run.thread_id,
+            run_id=self.current_run.id,
+            tool_outputs=tool_outputs,
+            event_handler=EventHandler(),
+        ) as stream:
+            for text in stream.text_deltas:
+                print(text, end="", flush=True)
+            print()
+
 
 while True:
     with client.beta.threads.runs.stream(
@@ -140,9 +135,12 @@ while True:
         assistant_id=GM.id,
         event_handler=EventHandler(),
     ) as stream:
-        stream.until_done()
+        # stream.until_done()
+        for text in stream.text_deltas:
+            print(text, end="", flush=True)
+        print()
 
-    user_input = input("\n> ")
+    user_input = input("> ")
 
     if user_input == "exit":
         break
