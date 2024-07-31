@@ -1,5 +1,7 @@
+import json
 from openai import OpenAI
 from dotenv import load_dotenv
+from diceroll import diceroll
 load_dotenv()
 client = OpenAI()
  
@@ -50,8 +52,12 @@ class EventHandler(AssistantEventHandler):
         
       for tool in data.required_action.submit_tool_outputs.tool_calls:
         if tool.function.name == "diceroll":
-            tool_outputs.append({"tool_call_id": tool.id, "output": "6"})
-        
+            print("ダイスロールを実行中…")
+            command = json.loads(tool.function.arguments)["command"]
+            result = diceroll(command)
+            print(result["text"])
+            tool_outputs.append({"tool_call_id": tool.id, "output": json.dumps(result)})
+            
       # Submit all tool_outputs at the same time
       self.submit_tool_outputs(tool_outputs, run_id)
  
