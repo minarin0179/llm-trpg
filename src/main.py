@@ -3,7 +3,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from typing_extensions import override
 from openai import AssistantEventHandler
-from utils.diceroll import diceroll_tool, Dicebot
+from utils.diceroll import DICEROOL_TOOL, Dicebot, show_diceroll_result
 from utils.file import read_text_file
 from utils.openai_utils import get_history
 from utils.io import user_input
@@ -79,7 +79,7 @@ while True:
         command = arguments.get("command")
 
         diceroll_result = dicebot.exec(command)
-        print(diceroll_result)
+        show_diceroll_result(diceroll_result)
 
         func_result = {
             "role": "tool",

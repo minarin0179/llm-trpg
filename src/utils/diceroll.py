@@ -25,8 +25,17 @@ The function processes die roll requests based on chat palette commands or expli
                 },
                 "required": ["command"]
             }
-        }
     }
+}
+
+
+def show_diceroll_result(result: Dict[str, Any]):
+    if result["success"]:
+        print(f"\033[34m{result["text"]}\033[0m")  # Blue
+    elif result["failure"]:
+        print(f"\033[31m{result["text"]}\033[0m")  # Red
+    else:
+        print(f"{result["text"]}")  # Default color
 
 
 class Dicebot:
@@ -46,6 +55,7 @@ class Dicebot:
         response = requests.get(
             f"{os.environ["BCDICE_API_URL"]}/v2/game_system/{self.id}/roll", params=params)
         result = response.json()
+
         return result
 
 
@@ -53,4 +63,4 @@ if __name__ == "__main__":
     dicebot = Dicebot()
     command = input("Enter command: ")
 
-    print(dicebot.exec(command))
+    show_diceroll_result(dicebot.exec(command))
