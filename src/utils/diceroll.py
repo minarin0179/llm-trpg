@@ -5,10 +5,9 @@ from typing import Dict, Any
 load_dotenv()
 
 
-def diceroll_tool():
-    return {
-        "type": "function",
-        "function": {
+DICEROOL_TOOL = {
+    "type": "function",
+    "function": {
             "name": "diceroll",
             "description": """This function executes a dice roll using the BCDice system.
 The function processes die roll requests based on chat palette commands or explicit input from the user. 

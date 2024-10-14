@@ -26,7 +26,7 @@ RULEBOOK_PATH = "rulebook/emoklore.txt"
 rulebook_text = f"ルールブックの内容は以下の通りです.\n{read_text_file(RULEBOOK_PATH)}"
 
 tools = [
-    diceroll_tool(),
+    DICEROOL_TOOL
 ]
 
 shared_prompt = f"""
