@@ -1,174 +1,95 @@
-import os, requests
+import json
+from openai import OpenAI
 from dotenv import load_dotenv
-from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager, register_function
+from typing_extensions import override
+from openai import AssistantEventHandler
+from utils.diceroll import diceroll_tool, Dicebot
+from utils.file import read_text_file
+from utils.openai_utils import get_history
+from utils.io import user_input
+
 load_dotenv()
+client = OpenAI()
 
-def die_roll(command: str) -> dict:
-    
-    params = {
-        "command": command
-    }
-    id="Emoklore"
-
-    response = requests.get(f"{os.environ["BCDICE_API_URL"]}/v2/game_system/{id}/roll", params=params)
-    result = response.json()
-    return result
-
-die_roll_schema = {
-    "name":"die_roll",
-    "description":"Execute a die roll. BCDice is used for die rolls. If a die roll is requested, find the appropriate die roll in the chat palette and output it as a command. If there is no command in the chat palette and a command is explicitly given, execute it. If none of the above apply, there is no need to execute the command."
-}
-
-# print("なんのシステムで遊びますか？ex) クトゥルフ神話TRPG，エモクロアTRPG")
-# system = input()
 system = "エモクロアTPRG"
 
+dicebot = Dicebot("Emoklore")
 
 SCENARIO_PATH = "scenario/hasshakusama_scenario.txt"
-scenario_text = "シナリオの内容は以下の通りです．\n"
-with open(SCENARIO_PATH, 'r', encoding='utf-8') as file:
-    scenario_text = file.read()
+scenario_text = f"シナリオの内容は以下の通りです．\n{read_text_file(SCENARIO_PATH)}"
 
 CHARACTER_PATH = "character/hibiki.txt"
 
-character_text = "プレイヤーのキャラクターの情報は以下の通りです.\n"
-with open(CHARACTER_PATH, 'r', encoding='utf-8') as file:
-    character_text = file.read()
+character_text = f"プレイヤーのキャラクターの情報は以下の通りです.\n{read_text_file(CHARACTER_PATH)}"
 
 RULEBOOK_PATH = "rulebook/emoklore.txt"
-with open(RULEBOOK_PATH, 'r', encoding='utf-8') as file:
-    rulebook_text = file.read()
+rulebook_text = f"ルールブックの内容は以下の通りです.\n{read_text_file(RULEBOOK_PATH)}"
 
-
-llm_config = {"model": "gpt-4o", "api_key": os.environ["OPENAI_API_KEY"]}
+tools = [
+    diceroll_tool(),
+]
 
 shared_prompt = f"""
 回答は常に日本語でお願いします．
 """
 
-game_master_prompt = f"""
+GM_instruction = f"""
 あなたはTRPGのゲームマスターです.
 今から{system}のシナリオを一緒に遊びましょう．
-あなたの他にも複数のGMが居るので彼らと相談しながら，
-GM達の意見を取りまとめてあなたが総意をプレイヤーに伝えてください．
 {scenario_text}
 {character_text}
 {shared_prompt}
 """
 
-game_master = AssistantAgent(
-    "GameMaster",
-    system_message=game_master_prompt,
-    llm_config=llm_config,
-    human_input_mode="NEVER"
-)
 
-player_prompt = '''
-あなたはTRPGのプレイヤーです.
-ゲームに積極的に参加し，時には意思決定やダイスロールを行いながら物語のゴールを目指してください．
-'''
-
-player = UserProxyAgent(
-    name="Player",
-    system_message=player_prompt,
-    human_input_mode="ALWAYS",
-    llm_config=llm_config
-)
-
-rule_agent_prompt = """
-あなたはTRPGのゲームマスターを補助する役割を任されています.
-あなたはゲームのルールに特化した専門家として呼ばれています．
-プレイヤーの入力に対して関連するルールがルールブックに記載されている場合はそれをゲームマスターが分かるように補足してください．
-使用するゲームは{system}です．
-ルールブックの内容は以下の通りです.
-{rulebook_text}
-{shared_prompt}
-"""
-
-rule_agent = AssistantAgent(
-    "RuleAgent",
-    system_message=rule_agent_prompt,
-    llm_config=llm_config,
-    human_input_mode="NEVER"
-)
-
-story_agent_prompt = f"""
-あなたはTRPGのゲームマスターを補助する役割を任されています.
-あなたはゲームのシナリオ進行に特化した専門家として呼ばれています．
-ゲームにおけるシナリオ状況を把握し，プレイヤーの行おうとしている行動がシナリオ進行から大きく外れていないかをゲームマスターに補足してください．
-また，次に取ることのできる行動やシナリオ進行の指針をゲームマスターに対して補足してください．
-{scenario_text}
-"""
-
-story_agent = AssistantAgent(
-    "StoryAgent",
-    system_message=story_agent_prompt,
-    llm_config=llm_config,
-    human_input_mode="NEVER"
-)
-
-worldview_agent_prompt = f"""
-あなたはTRPGのゲームマスターを補助する役割を任されています.
-あなたはゲームの世界観説明や描写に特化した専門家として呼ばれています．
-プレイヤーの行動が世界観や設定と矛盾がないかを判断してゲームマスターに補足してください．
-{scenario_text}
-"""
-
-worldview_agent =  AssistantAgent(
-    "WorldviewAgent",
-    system_message=worldview_agent_prompt,
-    llm_config=llm_config,
-    human_input_mode="NEVER",
-)
-
-
-groupchat = GroupChat(
-    agents=[game_master, rule_agent,story_agent,worldview_agent],
-    messages=[],
-    max_round=5,
-)
-manager = GroupChatManager(groupchat=groupchat, llm_config=llm_config)
-
-
-register_function(
-    die_roll,
-    caller=game_master, 
-    executor=player, 
-    **die_roll_schema
-)
-
-nested_chats = [
-    {
-        "recipient": rule_agent,
-        "summary_method": "reflection_with_llm",
-        "message":"ルール担当のあなたに尋ねます．このプレイヤーの行動に関連するルールはありますか？またそれに則っていますか？",
-        "max_turns":2
-    },
-    # {
-    #     "recipient": story_agent,
-    #     "summary_method": "reflection_with_llm",
-    #     "max_turns":2
-    # },
-    # {
-    #     "recipient": worldview_agent,
-    #     "summary_method": "reflection_with_llm",
-    #     "max_turns":2
-    # },
-    # {
-    #     "recipient": groupchat,
-    #     "summary_method": "reflection_with_llm",
-    #     "max_turns":3
-    # }
+messages = [
+    {"role": "system", "content": GM_instruction},
+    {"role": "user", "content": "セッションを始めましょう"},
 ]
 
-game_master.register_nested_chats(
-    nested_chats,
-    trigger=lambda sender: sender not in [rule_agent],
-)
 
-player.initiate_chat(
-    game_master,
-    message="それではセッションを始めましょう",
-)
+def generate_response():
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=messages,
+        tools=tools,
+    )
+    message = response.choices[0].message
+
+    messages.append(message)
+
+    if message.content:
+        print(message.content)
+
+    return response
 
 
+response = generate_response()
+
+while True:
+    user_input_text = user_input()
+    messages.append({"role": "user", "content": user_input_text})
+
+    response = generate_response()
+
+    tool_call = response.choices[0].message.tool_calls[0]
+
+    if tool_call and tool_call.function.name == "diceroll":
+        arguments = json.loads(tool_call.function.arguments)
+        command = arguments.get("command")
+
+        diceroll_result = dicebot.exec(command)
+        print(diceroll_result)
+
+        func_result = {
+            "role": "tool",
+            "content": json.dumps(diceroll_result),
+            "tool_call_id": response.choices[0].message.tool_calls[0].id,
+        }
+
+        messages.append(func_result)
+
+        response = generate_response()
+
+
+# TODO エラーで中断した時用にmessagesを保存して再開する仕組みを作る
