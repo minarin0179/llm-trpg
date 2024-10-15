@@ -1,11 +1,8 @@
 import json
 from openai import OpenAI
 from dotenv import load_dotenv
-from typing_extensions import override
-from openai import AssistantEventHandler
 from utils.diceroll import DICEROOL_TOOL, Dicebot, show_diceroll_result
 from utils.file import read_text_file
-from utils.openai_utils import get_history
 from utils.io import user_input
 
 load_dotenv()
