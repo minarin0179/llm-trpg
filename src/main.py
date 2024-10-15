@@ -20,6 +20,7 @@ scenario_text = f"シナリオの内容は以下の通りです．\n{read_text_f
 
 CHARACTER_PATH = "character/hibiki.txt"
 
+# TODO キャラクターの作成もセッション内で行うようにする
 character_text = f"プレイヤーのキャラクターの情報は以下の通りです.\n{read_text_file(CHARACTER_PATH)}"
 
 RULEBOOK_PATH = "rulebook/emoklore.txt"

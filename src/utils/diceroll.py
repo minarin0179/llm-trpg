@@ -1,7 +1,11 @@
 import os
 import requests
+import json
 from dotenv import load_dotenv
 from typing import Dict, Any
+
+# chatcompletionがたをimport
+from openai.types.chat.chat_completion import ChatCompletion
 load_dotenv()
 
 
@@ -36,6 +40,29 @@ def show_diceroll_result(result: Dict[str, Any]):
         print(f"\033[31m{result["text"]}\033[0m")  # Red
     else:
         print(f"{result["text"]}")  # Default color
+
+
+def handle_toolcall(response: ChatCompletion, messages: list):
+
+    tool_call = response.choices[0].message.tool_calls[0]
+
+    if tool_call and tool_call.function.name == "diceroll":
+        arguments = json.loads(tool_call.function.arguments)
+        command = arguments.get("command")
+
+        result = dicebot.exec(command)
+
+        message = {
+            "role": "tool",
+            "content": json.dumps(result),
+            "tool_call_id": response.choices[0].message.tool_calls[0].id,
+        }
+
+        return result, message
+
+        messages.append(message)
+
+        response = generate_response()
 
 
 class Dicebot:
