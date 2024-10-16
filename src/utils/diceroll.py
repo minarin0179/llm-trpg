@@ -34,6 +34,8 @@ The function processes die roll requests based on chat palette commands or expli
 
 
 def show_diceroll_result(result: Dict[str, Any]):
+    if result["ok"] == False:
+        print(f"\033[31mダイスロールの実行に失敗しました\033[0m")
     if result["success"]:
         print(f"\033[34m{result["text"]}\033[0m")  # Blue
     elif result["failure"]:
