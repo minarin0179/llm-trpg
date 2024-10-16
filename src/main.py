@@ -46,31 +46,25 @@ messages = [
 ]
 
 
-def generate_response():
+def generate_response(temporal=False):
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=messages,
         tools=tools,
     )
+
+    if temporal:
+        return response
+
     message = response.choices[0].message
 
     messages.append(message)
 
     if message.content:
-        print(message.content)
+        print(f"GM : {message.content}")
+        print("-"*30)
 
-    return response
-
-
-response = generate_response()
-
-while True:
-    user_input_text = user_input()
-    messages.append({"role": "user", "content": user_input_text})
-
-    response = generate_response()
-
-    tool_call = response.choices[0].message.tool_calls[0]
+    tool_call = message.tool_calls[0] if message.tool_calls else None
 
     if tool_call and tool_call.function.name == "diceroll":
         arguments = json.loads(tool_call.function.arguments)
@@ -78,6 +72,7 @@ while True:
 
         diceroll_result = dicebot.exec(command)
         show_diceroll_result(diceroll_result)
+        print("-"*30)
 
         func_result = {
             "role": "tool",
@@ -89,5 +84,15 @@ while True:
 
         response = generate_response()
 
+    return response
+
+
+response = generate_response()
+
+while True:
+    user_input_text = user_input()
+    messages.append({"role": "user", "content": user_input_text})
+
+    response = generate_response()
 
 # TODO エラーで中断した時用にmessagesを保存して再開する仕組みを作る
