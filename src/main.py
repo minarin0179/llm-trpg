@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from utils.diceroll import DICEROOL_TOOL, Dicebot, show_diceroll_result
 from utils.file import read_text_file
 from utils.io import user_input
+from openai.types.chat.chat_completion import ChatCompletion
 
 load_dotenv()
 client = OpenAI()
@@ -46,7 +47,7 @@ messages = [
 ]
 
 
-def generate_response(temporal=False):
+def generate_response(temporal: bool = False) -> ChatCompletion:
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=messages,

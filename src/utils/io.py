@@ -1,5 +1,5 @@
 
-def user_input():
+def user_input() -> str:
     while True:
         user_input = input("> ")
         if len(user_input) > 0:
