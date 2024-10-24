@@ -3,6 +3,7 @@ import requests
 import json
 from dotenv import load_dotenv
 from typing import Dict, Any
+from .ansi import RED, BLUE, GRAY, RESET
 
 # chatcompletionがたをimport
 from openai.types.chat.chat_completion import ChatCompletion
@@ -35,13 +36,13 @@ The function processes die roll requests based on chat palette commands or expli
 
 def show_diceroll_result(result: Dict[str, Any]):
     if result["ok"] == False:
-        print(f"\033[31mダイスロールの実行に失敗しました\033[0m")
-    if result["success"]:
-        print(f"\033[34m{result["text"]}\033[0m")  # Blue
+        print(f"{RED}ダイスロールの実行に失敗しました{RESET}")
+    elif result["success"]:
+        print(f"{BLUE}{result["text"]}{RESET}")
     elif result["failure"]:
-        print(f"\033[31m{result["text"]}\033[0m")  # Red
+        print(f"{RED}{result["text"]}{RESET}")
     else:
-        print(f"{result["text"]}")  # Default color
+        print(f"{result["text"]}")
 
 
 def handle_toolcall(response: ChatCompletion, messages: list):
