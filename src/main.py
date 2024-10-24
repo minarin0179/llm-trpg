@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from utils.diceroll import DICEROOL_TOOL, Dicebot, show_diceroll_result
 from utils.file import read_text_file
 from utils.io import user_input
+from utils.ansi import GRAY, RESET
 from openai.types.chat.chat_completion import ChatCompletion
 
 load_dotenv()
@@ -40,6 +41,15 @@ GM_instruction = f"""
 {shared_prompt}
 """
 
+assistants = [
+    """
+    あなたはTRPGのゲームマスターの補佐役です.
+    ゲームマスターである私のプレイヤーに対する，返信について問題がなければ「OK」とだけ返してください．
+    問題点があれば，その問題点を具体的に指摘し，改善案を提案してください．
+    ルールブックの内容は以下の通りです．
+    {rulebook_text}
+    """,
+]
 
 messages = [
     {"role": "system", "content": GM_instruction},
@@ -47,19 +57,110 @@ messages = [
 ]
 
 
+def stringfy_messages(messages: list[dict]) -> str:
+    role_map = {
+        "user": "Player",
+        "system": "GM",
+        "Assistant": "Assistant",
+    }
+    result = ""
+    for m in messages:
+        role = role_map.get(m.get("role"))
+        content = m.get("content")
+        result += f"{role} : {content}\n"
+    return result
+
+
+def generate_debate_response() -> ChatCompletion:
+    temporal_response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=messages,
+        tools=tools,
+    )
+
+    message = temporal_response.choices[0].message
+
+    tool_call = message.tool_calls[0] if message.tool_calls else None
+
+    if tool_call and tool_call.function.name == "diceroll":
+        arguments = json.loads(tool_call.function.arguments)
+        command = arguments.get("command")
+
+        diceroll_result = dicebot.exec(command)
+        show_diceroll_result(diceroll_result)
+        print("-"*30)
+
+        func_result = {
+            "role": "tool",
+            "content": json.dumps(diceroll_result),
+            "tool_call_id": temporal_response.choices[0].message.tool_calls[0].id,
+        }
+        # dicerollの際は履歴を更新
+        messages.append(temporal_response.choices[0].message.to_dict())
+        messages.append(func_result)
+
+        # toolcallしたら結果を入れて続きの応答を生成
+        return generate_debate_response()
+
+    # main loop
+    for i in range(3):  # TODO 全員がOKを出したら打ち切る
+        print(f"{GRAY}{temporal_response.choices[0].message.content}{RESET}")
+        feedbacks = []
+        for assistant in assistants:
+            temporal_messages = [
+                {"role": "system", "content": assistant},
+                {"role": "user", "content": f"以下は直前のGMとプレイヤーのやり取りです{
+                    # messages[-2:]とtemporalresponseを結合してstringfyする
+                    stringfy_messages(messages[-2:] + [temporal_response.choices[0].message.to_dict()])}"
+                 },
+            ]
+
+            # TODO feedbackを会話履歴に残すべきか検証
+
+            feedback_response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=temporal_messages,
+                tools=tools,
+            )
+            print(f"{GRAY}feedback{i} : {
+                  feedback_response.choices[0].message.content}{RESET}")
+            if feedback_response.choices[0].message.content == "OK":
+                continue
+
+            feedbacks.append(feedback_response)
+
+        if not feedbacks:  # 全員がOKを出したら終了
+            break
+        # feedbackを踏まえてtemporalresponseを更新する
+        temporal_response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                *messages,
+                temporal_response.choices[0].message,
+                {"role": "user", "content": "前回の応答に対してフィードバックを与えるので，それらを踏まえて応答をやり直してください．"},
+                *[{"role": "user", "content": f"feedback{i} : {feedback.choices[0].message}"}
+                    for i, feedback in enumerate(feedbacks)],
+            ],
+            tools=tools,
+        )
+    return temporal_response
+
+
 def generate_response(temporal: bool = False) -> ChatCompletion:
+
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=messages,
         tools=tools,
     )
 
+    # toolcallがあった時はそれを履歴に入れずにその次の出力まで生成して返して欲しい
+
     if temporal:
         return response
 
     message = response.choices[0].message
-
-    messages.append(message)
+    messages.append(message.to_dict())
 
     if message.content:
         print(f"GM : {message.content}")
@@ -88,12 +189,14 @@ def generate_response(temporal: bool = False) -> ChatCompletion:
     return response
 
 
+# initial response
 response = generate_response()
 
 while True:
     user_input_text = user_input()
     messages.append({"role": "user", "content": user_input_text})
-
-    response = generate_response()
+    # response = generate_response()
+    response = generate_debate_response()
+    print(response.choices[0].message.content)
 
 # TODO エラーで中断した時用にmessagesを保存して再開する仕組みを作る
