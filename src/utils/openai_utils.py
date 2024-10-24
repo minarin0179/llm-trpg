@@ -6,12 +6,12 @@ def get_history(client, thread_id):
     } for message in messages][::-1]
 
 
-def switch_role(history):
+def switch_role(history,):
     new_history = history.copy()
     for message in new_history:
         if message["role"] == "user":
-            message["role"] = "system"
-        elif message["role"] == "system":
+            message["role"] = "assistant"
+        elif message["role"] == "assistant":
             message["role"] = "user"
 
     return new_history
