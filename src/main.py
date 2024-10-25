@@ -10,16 +10,19 @@ from openai.types.chat.chat_completion import ChatCompletion
 load_dotenv()
 client = OpenAI()
 
-system = "エモクロアTPRG"
+GAME_SYSTEM = "エモクロアTPRG"
 
 dicebot = Dicebot("Emoklore")
+
+MAX_FEEDBACK = 3
+DEBUG = True
 
 SCENARIO_PATH = "scenario/hasshakusama_scenario.txt"
 scenario_text = f"シナリオの内容は以下の通りです．\n{read_text_file(SCENARIO_PATH)}"
 
 CHARACTER_PATH = "character/hibiki.txt"
 
-# TODO キャラクターの作成もセッション内で行うようにする
+# TODO: キャラクターの作成もセッション内で行うようにする
 character_text = f"プレイヤーのキャラクターの情報は以下の通りです.\n{read_text_file(CHARACTER_PATH)}"
 
 RULEBOOK_PATH = "rulebook/emoklore.txt"
@@ -35,7 +38,7 @@ shared_prompt = f"""
 
 GM_instruction = f"""
 あなたはTRPGのゲームマスターです.
-今から{system}のシナリオを一緒に遊びましょう．
+今から{GAME_SYSTEM}のシナリオを一緒に遊びましょう．
 {scenario_text}
 {character_text}
 {shared_prompt}
@@ -71,6 +74,11 @@ def stringfy_messages(messages: list[dict]) -> str:
     return result
 
 
+def debug_print(text):
+    if DEBUG:
+        print(f"{GRAY}{text}{RESET}")
+
+
 def generate_debate_response() -> ChatCompletion:
     temporal_response = client.chat.completions.create(
         model="gpt-4o",
@@ -95,7 +103,7 @@ def generate_debate_response() -> ChatCompletion:
             "content": json.dumps(diceroll_result),
             "tool_call_id": temporal_response.choices[0].message.tool_calls[0].id,
         }
-        # dicerollの際は履歴を更新
+        # dicerollの際はtoolcallを履歴に追加
         messages.append(temporal_response.choices[0].message.to_dict())
         messages.append(func_result)
 
@@ -103,8 +111,8 @@ def generate_debate_response() -> ChatCompletion:
         return generate_debate_response()
 
     # main loop
-    for i in range(3):  # TODO 全員がOKを出したら打ち切る
-        print(f"{GRAY}{temporal_response.choices[0].message.content}{RESET}")
+    for i in range(MAX_FEEDBACK):
+        debug_print(temporal_response.choices[0].message.content)
         feedbacks = []
         for assistant in assistants:
             temporal_messages = [
@@ -115,15 +123,17 @@ def generate_debate_response() -> ChatCompletion:
                  },
             ]
 
-            # TODO feedbackを会話履歴に残すべきか検証
+            # TODO: feedbackを会話履歴に残すべきか検証
 
             feedback_response = client.chat.completions.create(
                 model="gpt-4o",
                 messages=temporal_messages,
                 tools=tools,
             )
-            print(f"{GRAY}feedback{i} : {
-                  feedback_response.choices[0].message.content}{RESET}")
+
+            debug_print(f"feedback{i} : {
+                        feedback_response.choices[0].message.content}")
+            # TODO: reasoningも含めて出力
             if feedback_response.choices[0].message.content == "OK":
                 continue
 
