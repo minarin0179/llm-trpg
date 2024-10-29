@@ -15,6 +15,7 @@ Github Codespace, Devcontainer に対応
 
 
 ブラウザで[Codespace](https://github.com/codespaces/new/minarin0179/llm-trpg?quickstart=1)で開く (無料枠で動きます) 
+![alt text](images/codespace.png)
 
 初回起動はセットアップが走るので時間が掛かる
 
