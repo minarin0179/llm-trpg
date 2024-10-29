@@ -6,6 +6,7 @@ from utils.file import read_text_file
 from utils.io import user_input
 from utils.ansi import GRAY, RESET
 from openai.types.chat.chat_completion import ChatCompletion
+from datetime import datetime, timezone, timedelta
 
 load_dotenv()
 client = OpenAI()
@@ -153,6 +154,9 @@ def generate_debate_response() -> ChatCompletion:
             ],
             tools=tools,
         )
+
+        messages.append(temporal_response.choices[0].message.to_dict())
+
     return temporal_response
 
 
@@ -199,14 +203,33 @@ def generate_response(temporal: bool = False) -> ChatCompletion:
     return response
 
 
-# initial response
-response = generate_response()
+def save_session():
+    jst = timezone(timedelta(hours=9))
 
-while True:
-    user_input_text = user_input()
-    messages.append({"role": "user", "content": user_input_text})
-    # response = generate_response()
-    response = generate_debate_response()
-    print(response.choices[0].message.content)
+    # 現在の日時をJSTで取得し、フォーマット
+    formatted_datetime = datetime.now(jst).strftime("%y%m%d%H%M")
+    file_path = f".log/session_{formatted_datetime}.json"
 
-# TODO エラーで中断した時用にmessagesを保存して再開する仕組みを作る
+    with open(file_path, "w") as f:
+        json.dump(messages, f, indent=4, ensure_ascii=False)
+
+    # 保存先のパスを表示
+    print(f"セッション履歴が保存されました: {file_path}")
+
+
+if __name__ == "__main__":
+    # initial response
+    response = generate_response()
+
+    while True:
+        user_input_text = user_input()
+        if user_input_text == "exit":
+            # messagesを「session_日付.json」に保存」
+            save_session()
+            break
+        messages.append({"role": "user", "content": user_input_text})
+        # response = generate_response()
+        response = generate_debate_response()
+        print(response.choices[0].message.content)
+
+    # TODO エラーで中断した時用にmessagesを保存して再開する仕組みを作る
