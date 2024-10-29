@@ -1,15 +1,19 @@
 import json
+import sys
 from openai import OpenAI
 from dotenv import load_dotenv
 from utils.diceroll import DICEROOL_TOOL, Dicebot, show_diceroll_result
 from utils.file import read_text_file
 from utils.io import user_input
 from utils.ansi import GRAY, RESET
+from utils.logger import Logger
 from openai.types.chat.chat_completion import ChatCompletion
 from datetime import datetime, timezone, timedelta
 
 load_dotenv()
 client = OpenAI()
+
+sys.stdout = Logger(".log/recent_output.log")
 
 GAME_SYSTEM = "エモクロアTPRG"
 
