@@ -16,7 +16,11 @@ HEADERS = {
 }
 
 
-def save_to_notion(title: str, content: str):
+def split_text(text, chunk_size=1999):
+    return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
+
+
+def save_to_notion(title: str, contents: str):
     today = datetime.date.today().isoformat()
 
     data = {
@@ -50,7 +54,7 @@ def save_to_notion(title: str, content: str):
                             "text": {
                                 "content": content
                             }
-                        }
+                        } for content in split_text(contents)
                     ],
                     "language": "json"
                 }
@@ -59,6 +63,8 @@ def save_to_notion(title: str, content: str):
         ]
     }
 
+    print("セッション記録をサーバーに送信中です、しばらくお待ちください...")
+
     response = requests.post(
         NOTION_API_ENDPOINT, headers=HEADERS, data=json.dumps(data))
 
@@ -66,3 +72,7 @@ def save_to_notion(title: str, content: str):
         print("セッション記録が正常に送信されました")
     else:
         print("セッション記録の送信に失敗しました:", response.status_code, response.text)
+
+
+if __name__ == "__main__":
+    save_to_notion("test", "test")
