@@ -7,6 +7,7 @@ from utils.file import read_text_file
 from utils.io import user_input
 from utils.ansi import GRAY, RESET
 from utils.logger import Logger
+from utils.notion import save_to_notion
 from openai.types.chat.chat_completion import ChatCompletion
 from datetime import datetime, timezone, timedelta
 
@@ -214,13 +215,15 @@ def save_session():
 
     # 現在の日時をJSTで取得し、フォーマット
     formatted_datetime = datetime.now(jst).strftime("%y%m%d%H%M")
-    file_path = f".log/session_{formatted_datetime}.json"
+    filename = f"session_{formatted_datetime}"
+    file_path = f".log/{filename}.json"
 
     with open(file_path, "w") as f:
         json.dump(messages, f, indent=4, ensure_ascii=False)
+        print(f"セッション履歴の保存が完了しました: {file_path}")
 
-    # 保存先のパスを表示
-    print(f"セッション履歴が保存されました: {file_path}")
+    save_to_notion(filename, json.dumps(
+        messages, indent=4, ensure_ascii=False))
 
 
 def handle_tool_call(response):
