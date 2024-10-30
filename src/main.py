@@ -246,18 +246,23 @@ def handle_tool_call(response):
 
 
 if __name__ == "__main__":
-    # initial response
-    response = generate_response()
+    try:
+        # initial response
+        response = generate_response()
 
-    while True:
-        user_input_text = user_input()
-        if user_input_text == "exit":
-            # messagesを「session_日付.json」に保存」
-            save_session()
-            break
-        messages.append({"role": "user", "content": user_input_text})
-        # response = generate_response()
-        response = generate_debate_response()
+        while True:
+            user_input_text = user_input()
+            if user_input_text == "exit":
+                # messagesを「session_日付.json」に保存」
+                save_session()
+                break
+            messages.append({"role": "user", "content": user_input_text})
+            # response = generate_response()
+            response = generate_debate_response()
 
-        handle_tool_call(response)
-    # TODO エラーで中断した時用にmessagesを保存して再開する仕組みを作る
+            handle_tool_call(response)
+        # TODO エラーで中断した時用にmessagesを保存して再開する仕組みを作る
+    except Exception as e:
+        print(e)
+        save_session()
+        raise e
