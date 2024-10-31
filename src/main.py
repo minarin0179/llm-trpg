@@ -1,5 +1,6 @@
 import json
 import sys
+import os
 from openai import OpenAI
 from dotenv import load_dotenv
 from utils.diceroll import DICEROOL_TOOL, Dicebot, show_diceroll_result
@@ -10,6 +11,8 @@ from utils.logger import Logger
 from utils.notion import save_to_notion
 from openai.types.chat.chat_completion import ChatCompletion
 from datetime import datetime, timezone, timedelta
+from pydantic import BaseModel
+
 
 load_dotenv()
 client = OpenAI()
@@ -21,7 +24,7 @@ GAME_SYSTEM = "エモクロアTPRG"
 dicebot = Dicebot("Emoklore")
 
 MAX_FEEDBACK = 3
-DEBUG = True
+DEBUG = os.getenv("ENV", "production") == "development"
 
 SCENARIO_PATH = "scenario/hasshakusama_scenario.txt"
 scenario_text = f"シナリオの内容は以下の通りです．\n{read_text_file(SCENARIO_PATH)}"
@@ -55,9 +58,10 @@ GM_instruction = f"""
 assistants = [
     """
     あなたはTRPGのゲームマスターの補佐役です.
-    ゲームマスターである私のプレイヤーに対する応答について参照するべきルールがあればそれを引用して補足してください．
-    また，私の応答が該当の則っていない場合は，修正方法を提案してください．
-    修正すべき点がなければ出力の最後に"OK"，修正するべき点があれば"NG"と返してください.
+    ゲームマスターである私のプレイヤーに対する応答について参照するべきルールがあればそれを引用してcommentで補足してください.
+    また，私の応答が該当の則っていない場合はcommentで修正方法を提案してください.
+    commentは日本語でお願いします．
+    修正すべき点がなければresultにTrue，修正するべき点があればresultにFalseを返してください.
     ルールブックの内容は以下の通りです．
     {rulebook_text}
     """,
@@ -88,12 +92,18 @@ def debug_print(text):
         print(f"{GRAY}{text}{RESET}")
 
 
+class Feedback(BaseModel):
+    comment: str
+    result: bool
+
+
 def generate_debate_response() -> ChatCompletion:
+
+    print("GM: 考え中...", end="\r")
     temporal_messages_for_gamemaster = messages.copy()
 
     # feedback loop
     for i in range(MAX_FEEDBACK):
-        print(temporal_messages_for_gamemaster)
         temporal_response = client.chat.completions.create(
             model="gpt-4o",
             messages=temporal_messages_for_gamemaster,
@@ -112,7 +122,7 @@ def generate_debate_response() -> ChatCompletion:
         temporal_message.pop("tool_calls", None)
         temporal_messages_for_gamemaster.append(temporal_message)
 
-        feedbacks = []
+        feedbacks: list[Feedback] = []
         for assistant in assistants:
             temporal_messages = [
                 {"role": "system", "content": assistant},
@@ -122,25 +132,25 @@ def generate_debate_response() -> ChatCompletion:
                  },
             ]
 
-            print(temporal_messages)
-            feedback_response = client.chat.completions.create(
+            feedback_response = client.beta.chat.completions.parse(
                 model="gpt-4o",
                 messages=temporal_messages,
-                # tools=tools, # feedbackの時はtoolcallを使わない
+                response_format=Feedback
             )
 
-            debug_print(f"feedback{i} : {
-                        feedback_response.choices[0].message.content}")
-            # TODO: reasoningも含めて出力
-            if feedback_response.choices[0].message.content.endswith("OK"):
-                # TODO : 出力制御が上手くいってない jsonモードを試す
+            feedback = feedback_response.choices[0].message.parsed
+
+            debug_print(f"feedback{i} : {"OK" if feedback.result else "NG"}\n{
+                        feedback.comment}\n")
+            if feedback.result:
                 continue
 
-            feedbacks.append(feedback_response)
+            feedbacks.append(feedback)
 
         if not feedbacks:  # 全員がOKを出したら終了
             final_response = temporal_response
             break
+
         # feedbackを踏まえてtemporalresponseを更新する
         temporal_messages_for_gamemaster.append(
             {
@@ -149,7 +159,7 @@ def generate_debate_response() -> ChatCompletion:
                 前回の応答に対してフィードバックを与えるので，それらを踏まえて応答をやり直してください．
                 「再度やり直します」などの断りは不要です．
                 {"\n".join([
-                    f"feedback{i} : {feedback.choices[0].message}" for i, feedback in enumerate(feedbacks)
+                    f"feedback{i} : {feedback.comment}" for i, feedback in enumerate(feedbacks)
                 ])}
                 """}
         )
@@ -174,8 +184,6 @@ def generate_response(temporal: bool = False) -> ChatCompletion:
         messages=messages,
         tools=tools,
     )
-
-    # toolcallがあった時はそれを履歴に入れずにその次の出力まで生成して返して欲しい
 
     if temporal:
         return response
@@ -212,8 +220,6 @@ def generate_response(temporal: bool = False) -> ChatCompletion:
 
 def save_session():
     jst = timezone(timedelta(hours=9))
-
-    # 現在の日時をJSTで取得し、フォーマット
     formatted_datetime = datetime.now(jst).strftime("%y%m%d%H%M")
     filename = f"session_{formatted_datetime}"
     file_path = f".log/{filename}.json"
@@ -226,7 +232,7 @@ def save_session():
         messages, indent=4, ensure_ascii=False))
 
 
-def handle_tool_call(response):
+def handle_tool_call(response: ChatCompletion):
     message = response.choices[0].message
     tool_call = message.tool_calls[0] if message.tool_calls else None
 
@@ -250,21 +256,18 @@ def handle_tool_call(response):
 
 if __name__ == "__main__":
     try:
-        # initial response
         response = generate_response()
 
         while True:
             user_input_text = user_input()
             if user_input_text == "exit":
-                # messagesを「session_日付.json」に保存」
                 save_session()
                 break
             messages.append({"role": "user", "content": user_input_text})
-            # response = generate_response()
+            print("-"*30)
+            # response = generate_response() # single agent
             response = generate_debate_response()
 
-            handle_tool_call(response)
-        # TODO エラーで中断した時用にmessagesを保存して再開する仕組みを作る
     except Exception as e:
         print(e)
         save_session()
