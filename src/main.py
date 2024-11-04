@@ -114,8 +114,7 @@ def generate_debate_response() -> ChatCompletion:
         if temporal_response.choices[0].message.content is None:
             # toolcallでcontentがnullの時はダイスを振って追加で応答を生成
             messages.append(temporal_response.choices[0].message.to_dict())
-            handle_tool_call(temporal_response)
-            return generate_debate_response()
+            return handle_tool_call(temporal_response)
 
         # contentがnullじゃないときはtoolcallを外す
         temporal_message = temporal_response.choices[0].message.to_dict()
@@ -174,6 +173,7 @@ def generate_debate_response() -> ChatCompletion:
 
     print(f"GM : {final_response.choices[0].message.content}")
     print("-"*30)
+    handle_tool_call(final_response)
     return final_response
 
 
@@ -232,13 +232,23 @@ def save_session():
         messages, indent=4, ensure_ascii=False))
 
 
-def handle_tool_call(response: ChatCompletion):
+def handle_tool_call(response: ChatCompletion) -> None:
     message = response.choices[0].message
     tool_call = message.tool_calls[0] if message.tool_calls else None
 
-    if tool_call and tool_call.function.name == "diceroll":
-        arguments = json.loads(tool_call.function.arguments)
-        command = arguments.get("command")
+    # toolcallがない場合は何もしない
+    if not tool_call or tool_call.function.name != "diceroll":
+        return
+
+    arguments = json.loads(tool_call.function.arguments)
+    command = arguments.get("command")
+
+    print(f"""GM: 「{command}」でダイスロールを実行して良いですか？
+(問題なければ何も入力せずEnterを押してください)
+""")
+    user_input_text = input("> ")
+
+    if user_input_text == "":
 
         diceroll_result = dicebot.exec(command)
         show_diceroll_result(diceroll_result)
@@ -251,7 +261,15 @@ def handle_tool_call(response: ChatCompletion):
         }
 
         messages.append(func_result)
-    return response
+        generate_debate_response()
+    else:
+        last_message = messages.pop()
+        if last_message.get("content", None):
+            # contentがある場合はtoolcallを消して戻す
+            last_message.pop("tool_calls", None)
+            messages.append(last_message)
+        messages.append({"role": "user", "content": user_input_text})
+        generate_debate_response()
 
 
 if __name__ == "__main__":
@@ -266,7 +284,7 @@ if __name__ == "__main__":
             messages.append({"role": "user", "content": user_input_text})
             print("-"*30)
             # response = generate_response() # single agent
-            response = generate_debate_response()
+            generate_debate_response()
 
     except Exception as e:
         print(e)
