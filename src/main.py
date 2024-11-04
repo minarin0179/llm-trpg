@@ -109,13 +109,13 @@ class Feedback(BaseModel):
     result: bool
 
 
-def generate_debate_response() -> ChatCompletion:
+def generate_response(no_debate=False) -> ChatCompletion:
 
-    print("GM: 考え中...", end="\r")
+    print(f"{GRAY}GM: 考え中...{RESET}", end="\r")
     temporal_messages_for_gamemaster = messages.copy()
 
     # feedback loop
-    for i in range(MAX_FEEDBACK):
+    for i in range(MAX_FEEDBACK if not no_debate else 0):
         temporal_response = client.chat.completions.create(
             model="gpt-4o",
             messages=temporal_messages_for_gamemaster,
@@ -190,47 +190,6 @@ def generate_debate_response() -> ChatCompletion:
     return final_response
 
 
-def generate_response(temporal: bool = False) -> ChatCompletion:
-
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=messages,
-        tools=tools,
-    )
-
-    if temporal:
-        return response
-
-    message = response.choices[0].message
-    messages.append(message.to_dict())
-
-    if message.content:
-        print(f"GM : {message.content}")
-        print("-"*30)
-
-    tool_call = message.tool_calls[0] if message.tool_calls else None
-
-    if tool_call and tool_call.function.name == "diceroll":
-        arguments = json.loads(tool_call.function.arguments)
-        command = arguments.get("command")
-
-        diceroll_result = dicebot.exec(command)
-        show_diceroll_result(diceroll_result)
-        print("-"*30)
-
-        func_result = {
-            "role": "tool",
-            "content": json.dumps(diceroll_result),
-            "tool_call_id": response.choices[0].message.tool_calls[0].id,
-        }
-
-        messages.append(func_result)
-
-        response = generate_response()
-
-    return response
-
-
 def save_session():
     jst = timezone(timedelta(hours=9))
     formatted_datetime = datetime.now(jst).strftime("%y%m%d%H%M")
@@ -282,7 +241,7 @@ def handle_tool_call(response: ChatCompletion) -> None:
         }
 
         messages.append(func_result)
-        generate_debate_response()
+        generate_response()
     else:
         last_message = messages.pop()
         if last_message.get("content", None):
@@ -290,12 +249,12 @@ def handle_tool_call(response: ChatCompletion) -> None:
             last_message.pop("tool_calls", None)
             messages.append(last_message)
         messages.append({"role": "user", "content": user_input_text})
-        generate_debate_response()
+        generate_response()
 
 
 if __name__ == "__main__":
     try:
-        response = generate_response()
+        response = generate_response(no_debate=True)
 
         while True:
             user_input_text = user_input()
@@ -305,7 +264,7 @@ if __name__ == "__main__":
             messages.append({"role": "user", "content": user_input_text})
             print("-"*30)
             # response = generate_response() # single agent
-            generate_debate_response()
+            generate_response()
 
     except Exception as e:
         print(e)
