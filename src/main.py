@@ -58,13 +58,13 @@ GM_instruction = f"""
 
 assistants = [
     """
-    あなたはTRPGのゲームマスターの補佐役です.
-    ゲームマスターである私のプレイヤーに対する応答について参照するべきルールがあればそれを引用してcommentで補足してください.
-    また，私の応答が該当の則っていない場合はcommentで修正方法を提案してください.
-    commentは日本語でお願いします．
-    修正すべき点がなければresultにTrue，修正するべき点があればresultにFalseを返してください.
-    ルールブックの内容は以下の通りです．
-    {rulebook_text}
+あなたはTRPGのゲームマスターの補佐役です.
+ゲームマスターである私のプレイヤーに対する応答について参照するべきルールがあればそれを引用してcommentで補足してください.
+また，私の応答が該当の則っていない場合はcommentで修正方法を提案してください.
+commentは日本語でお願いします．
+修正すべき点がなければresultにTrue，修正するべき点があればresultにFalseを返してください.
+ルールブックの内容は以下の通りです．
+{rulebook_text}
     """,
 ]
 
@@ -72,6 +72,8 @@ messages = [
     {"role": "system", "content": GM_instruction},
     {"role": "user", "content": "それではセッションを始めましょう.まずはシナリオ概要の説明と導入をお願いします."},
 ]
+
+feedback_message_logs = {}
 
 
 def stringfy_messages(messages: list[dict]) -> str:
@@ -147,22 +149,21 @@ def generate_debate_response() -> ChatCompletion:
 
             feedbacks.append(feedback)
 
-        if not feedbacks:  # 全員がOKを出したら終了
-            final_response = temporal_response
-            break
-
         # feedbackを踏まえてtemporalresponseを更新する
         temporal_messages_for_gamemaster.append(
             {
                 "role": "user",
                 "content": f"""
-                前回の応答に対してフィードバックを与えるので，それらを踏まえて応答をやり直してください．
-                「再度やり直します」などの断りは不要です．
-                {"\n".join([
-                    f"feedback{i} : {feedback.comment}" for i, feedback in enumerate(feedbacks)
-                ])}
+前回の応答に対してフィードバックを与えるので，それらを踏まえて応答をやり直してください．
+「再度やり直します」などの断りは不要です．
+{"\n".join([f"feedback{i} : {feedback.comment}" for i,
+                    feedback in enumerate(feedbacks)])}
                 """}
         )
+
+        if not feedbacks:  # 全員がOKを出したら終了
+            final_response = temporal_response
+            break
     else:  # 回数上限に達した場合は最終応答を生成
         final_response = client.chat.completions.create(
             model="gpt-4o",
@@ -170,6 +171,8 @@ def generate_debate_response() -> ChatCompletion:
             tools=tools,
         )
 
+    current_message_index = len(messages)
+    feedback_message_logs[current_message_index] = temporal_messages_for_gamemaster[current_message_index+1:]
     messages.append(final_response.choices[0].message.to_dict())
 
     print(f"GM : {final_response.choices[0].message.content}")
@@ -225,12 +228,20 @@ def save_session():
     filename = f"session_{formatted_datetime}"
     file_path = f".log/{filename}.json"
 
+    logs = []
+    for i, message in enumerate(messages):
+        feedback = feedback_message_logs.get(i, None)
+        logs.append(
+            {"message": message, "feedback": feedback}
+        )
+
+    output_text = json.dumps(logs, ensure_ascii=False, indent=2)
+
     with open(file_path, "w") as f:
-        json.dump(messages, f, indent=4, ensure_ascii=False)
+        f.write(output_text)
         print(f"セッション履歴の保存が完了しました: {file_path}")
 
-    save_to_notion(filename, json.dumps(
-        messages, indent=4, ensure_ascii=False))
+    save_to_notion(filename, output_text)
 
 
 def handle_tool_call(response: ChatCompletion) -> None:
