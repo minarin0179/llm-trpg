@@ -88,7 +88,7 @@ def stringfy_messages(messages: list[dict]) -> str:
 
 
 def debug_print(text):
-    if DEBUG:
+    if DEBUG and text:
         print(f"{GRAY}{text}{RESET}")
 
 
