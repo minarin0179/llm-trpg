@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from utils.diceroll import DICEROOL_TOOL, Dicebot, show_diceroll_result
 from utils.file import read_text_file
 from utils.io import user_input
-from utils.ansi import GRAY, RESET
+from utils.ansi import GRAY, RESET,  MAGENTA
 from utils.logger import Logger
 from utils.notion import save_to_notion
 from openai.types.chat.chat_completion import ChatCompletion
@@ -184,7 +184,7 @@ def generate_response(no_debate=False) -> ChatCompletion:
     feedback_message_logs[current_message_index] = temporal_messages_for_gamemaster[current_message_index+1:]
     messages.append(final_response.choices[0].message.to_dict())
 
-    print(f"GM : {final_response.choices[0].message.content}")
+    print(f"{MAGENTA}GM : {final_response.choices[0].message.content}{RESET}")
     print("-"*30)
     handle_tool_call(final_response)
     return final_response
