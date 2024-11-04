@@ -59,13 +59,22 @@ GM_instruction = f"""
 assistants = [
     """
 あなたはTRPGのゲームマスターの補佐役です.
-ゲームマスターである私のプレイヤーに対する応答について参照するべきルールがあればそれを引用してcommentで補足してください.
-また，私の応答が該当の則っていない場合はcommentで修正方法を提案してください.
+まずゲームマスターである私のプレイヤーに対する応答について参照するべきルールがあればそれを引用してcommentで補足してください.
+そして，私の応答が該当のルールに則っていない場合はcommentで修正方法を提案してください.
 commentは日本語でお願いします．
 修正すべき点がなければresultにTrue，修正するべき点があればresultにFalseを返してください.
 ルールブックの内容は以下の通りです．
 {rulebook_text}
     """,
+    """
+あなたはTRPGのゲームマスターの補佐役です.
+まず，ゲームマスターである私のプレイヤーに対する応答についてシナリオに関連する内容があればシナリオの該当部分を引用してcommentで補足してください.
+そして，私の応答がシナリオと矛盾していたり，大きく逸脱している場合はcommentで修正方法を提案してください.
+commentは日本語でお願いします．
+修正すべき点がなければresultにTrue，修正するべき点があればresultにFalseを返してください.
+ルールブックの内容は以下の通りです．
+{sceanrio_text}
+    """
 ]
 
 messages = [
@@ -125,7 +134,7 @@ def generate_debate_response() -> ChatCompletion:
         temporal_messages_for_gamemaster.append(temporal_message)
 
         feedbacks: list[Feedback] = []
-        for assistant in assistants:
+        for j, assistant in enumerate(assistants):
             temporal_messages = [
                 {"role": "system", "content": assistant},
                 {"role": "user", "content": f"以下は直近のGMとプレイヤーのやり取りです{
@@ -142,7 +151,7 @@ def generate_debate_response() -> ChatCompletion:
 
             feedback = feedback_response.choices[0].message.parsed
 
-            debug_print(f"feedback{i} : {"OK" if feedback.result else "NG"}\n{
+            debug_print(f"feedback{i}-{j} : {"OK" if feedback.result else "NG"}\n{
                         feedback.comment}\n")
             if feedback.result:
                 continue
