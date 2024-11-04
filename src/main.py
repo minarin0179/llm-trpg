@@ -50,9 +50,10 @@ GM_instruction = f"""
 今から{GAME_SYSTEM}のシナリオを一緒に遊びましょう．
 「了解しました」などといった要求に対する応答は必要ありません．
 また出力にmarkdown記法を用いてはいけません．
+{shared_prompt}
+{rulebook_text}
 {scenario_text}
 {character_text}
-{shared_prompt}
 """
 
 assistants = [
