@@ -29,7 +29,7 @@ DEBUG = os.getenv("ENV", "production") == "development"
 SCENARIO_PATH = "scenario/hasshakusama_scenario.txt"
 scenario_text = f"シナリオの内容は以下の通りです．\n{read_text_file(SCENARIO_PATH)}"
 
-CHARACTER_PATH = "character/hibiki.txt"
+CHARACTER_PATH = "character/意欲的な新米探偵.txt"
 
 # TODO: キャラクターの作成もセッション内で行うようにする
 character_text = f"プレイヤーのキャラクターの情報は以下の通りです.\n{read_text_file(CHARACTER_PATH)}"
