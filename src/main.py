@@ -57,24 +57,22 @@ GM_instruction = f"""
 """
 
 assistants = [
-    """
+    f"""
 あなたはTRPGのゲームマスターの補佐役です.
 まずゲームマスターである私のプレイヤーに対する応答について参照するべきルールがあればそれを引用してcommentで補足してください.
 そして，私の応答が該当のルールに則っていない場合はcommentで修正方法を提案してください.
 commentは日本語でお願いします．
 修正すべき点がなければresultにTrue，修正するべき点があればresultにFalseを返してください.
 ルールブックの内容は以下の通りです．
-{rulebook_text}
-    """,
-    """
+{rulebook_text}""",
+    f"""
 あなたはTRPGのゲームマスターの補佐役です.
 まず，ゲームマスターである私のプレイヤーに対する応答についてシナリオに関連する内容があればシナリオの該当部分を引用してcommentで補足してください.
 そして，私の応答がシナリオと矛盾していたり，大きく逸脱している場合はcommentで修正方法を提案してください.
 commentは日本語でお願いします．
 修正すべき点がなければresultにTrue，修正するべき点があればresultにFalseを返してください.
-ルールブックの内容は以下の通りです．
-{sceanrio_text}
-    """
+シナリオの内容は以下の通りです．
+{scenario_text}"""
 ]
 
 messages = [
@@ -89,7 +87,7 @@ def stringfy_messages(messages: list[dict]) -> str:
     role_map = {
         "user": "Player",
         "system": "GM",
-        "Assistant": "Assistant",
+        "assistant": "GM",
     }
     result = ""
     for m in messages:
