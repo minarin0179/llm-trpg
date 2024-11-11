@@ -214,42 +214,48 @@ def save_session():
 
 def handle_tool_call(response: ChatCompletion) -> None:
     message = response.choices[0].message
-    tool_call = message.tool_calls[0] if message.tool_calls else None
+    tool_calls = message.tool_calls if message.tool_calls else []
 
     # toolcallがない場合は何もしない
-    if not tool_call or tool_call.function.name != "diceroll":
+    if not tool_calls:
         return
 
-    arguments = json.loads(tool_call.function.arguments)
-    command = arguments.get("command")
+    func_results = []
+    for tool_call in tool_calls:
+        arguments = json.loads(tool_call.function.arguments)
+        command = arguments.get("command")
 
-    print(f"""GM: 「{command}」でダイスロールを実行して良いですか？
-(問題なければ何も入力せずEnterを押してください)
-""")
-    user_input_text = input("> ")
+        print(f"""GM: 「{command}」でダイスロールを実行して良いですか？
+    (問題なければ何も入力せずEnterを押してください)
+    """)
+        user_input_text = input("> ")
 
-    if user_input_text == "":
+        if user_input_text == "":
 
-        diceroll_result = dicebot.exec(command)
-        show_diceroll_result(diceroll_result)
-        print("-"*30)
+            diceroll_result = dicebot.exec(command)
+            show_diceroll_result(diceroll_result)
+            print("-"*30)
 
-        func_result = {
-            "role": "tool",
-            "content": json.dumps(diceroll_result),
-            "tool_call_id": response.choices[0].message.tool_calls[0].id,
-        }
+            func_result = {
+                "role": "tool",
+                "content": json.dumps(diceroll_result),
+                "tool_call_id": tool_call.id,
+            }
+            func_results.append(func_result)
+        else:
+            last_message = messages.pop()
+            if last_message.get("content", None):
+                # contentがある場合はtoolcallを消して戻す
+                last_message.pop("tool_calls", None)
+                messages.append(last_message)
+            messages.append({"role": "user", "content": user_input_text})
+            func_results = []
+            break
 
-        messages.append(func_result)
-        generate_response()
-    else:
-        last_message = messages.pop()
-        if last_message.get("content", None):
-            # contentがある場合はtoolcallを消して戻す
-            last_message.pop("tool_calls", None)
-            messages.append(last_message)
-        messages.append({"role": "user", "content": user_input_text})
-        generate_response()
+    if func_results:
+        messages.extend(func_results)
+
+    generate_response()
 
 
 if __name__ == "__main__":
