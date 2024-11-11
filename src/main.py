@@ -1,7 +1,8 @@
 import json
 import sys
 import os
-from openai import OpenAI
+import asyncio
+from openai import OpenAI, AsyncOpenAI
 from dotenv import load_dotenv
 from utils.diceroll import DICEROOL_TOOL, Dicebot, show_diceroll_result
 from utils.file import read_text_file
@@ -80,7 +81,7 @@ messages = [
     {"role": "user", "content": "それではセッションを始めましょう.まずはシナリオ概要の説明と導入をお願いします."},
 ]
 
-feedback_message_logs = {}
+feedback_message_logs: dict[int, list] = {}
 
 
 def stringfy_messages(messages: list[dict]) -> str:
@@ -106,11 +107,51 @@ class Feedback(BaseModel):
     comment: str
     result: bool
 
+    def to_dict(self):
+        return {
+            "comment": self.comment,
+            "result": self.result
+        }
+
+
+def feedback_to_dict(obj):
+    if isinstance(obj, Feedback):
+        return obj.to_dict()
+    raise
+
+
+async def generate_multiple_feedbacks(messages_list: list[list[dict]]):
+    client = AsyncOpenAI()
+
+    feedback_responses = await asyncio.gather(
+        *[
+            client.beta.chat.completions.parse(
+                model="gpt-4o",
+                messages=messages,
+                response_format=Feedback
+            ) for messages in messages_list
+        ]
+    )
+    feedback = [
+        response.choices[0].message.parsed for response in feedback_responses]
+
+    return feedback
+
 
 def generate_response(no_debate=False) -> ChatCompletion:
 
     print(f"{GRAY}GM: 考え中...{RESET}", end="\r")
     temporal_messages_for_gamemaster = messages.copy()
+    temporal_messages_for_assistants = [
+        [
+            {
+                "role": "system",
+                "content": assistant},
+            {
+                "role": "user",
+                "content": f"以下は直近のゲームマスターとプレイヤーのやり取りです\n{stringfy_messages(messages[-2:])}"
+            },
+        ] for assistant in assistants]
 
     # feedback loop
     for i in range(MAX_FEEDBACK if not no_debate else 0):
@@ -131,46 +172,55 @@ def generate_response(no_debate=False) -> ChatCompletion:
         temporal_message.pop("tool_calls", None)
         temporal_messages_for_gamemaster.append(temporal_message)
 
-        feedbacks: list[Feedback] = []
-        for j, assistant in enumerate(assistants):
-            temporal_messages = [
-                {"role": "system", "content": assistant},
-                {"role": "user", "content": f"以下は直近のGMとプレイヤーのやり取りです{
-                    # messages[-2:]とtemporalresponseを結合してstringfyする
-                    stringfy_messages(temporal_messages_for_gamemaster[-2*(i+1)-1:])}"
-                 },
-            ]
-
-            feedback_response = client.beta.chat.completions.parse(
-                model="gpt-4o",
-                messages=temporal_messages,
-                response_format=Feedback
+        for j in range(len(assistants)):
+            temporal_messages_for_assistants[j].append(
+                {
+                    "role": "user",
+                    "content": f"以下はこれに続くGMの応答です「{temporal_message["content"]}」"
+                } if i == 0 else {
+                    "role": "user",
+                    "content": f"フィードバックを元に応答を考え直しました．再度フィードバックを行ってください.「{temporal_message["content"]}」"
+                }
             )
 
-            feedback = feedback_response.choices[0].message.parsed
+        feedbacks = asyncio.run(generate_multiple_feedbacks(
+            temporal_messages_for_assistants))
 
-            debug_print(f"feedback{i}-{j} : {"OK" if feedback.result else "NG"}\n{
-                        feedback.comment}\n")
-            if feedback.result:
-                continue
+        for j, feedback in enumerate(feedbacks):
+            debug_print(
+                f"feedback{i}-{j} : {'OK' if feedback.result else 'NG'}\n{feedback.comment}\n")
+            temporal_messages_for_assistants[j].append(
+                {
+                    "role": "assistant",
+                    "content": feedback.comment,
+                }
+            )
 
-            feedbacks.append(feedback)
+        # フィードバックの記録
+        current_message_index = len(messages)
+        if current_message_index not in feedback_message_logs:
+            feedback_message_logs[current_message_index] = []
 
-        # feedbackを踏まえてtemporalresponseを更新する
+        feedback_message_logs[current_message_index].append(
+            {"temporal_response": temporal_response.choices[0].message.content, "feedbacks": feedbacks})
+
+        NG_feedbacks = [
+            feedback for feedback in feedbacks if not feedback.result]
+
+        if not NG_feedbacks:
+            final_response = temporal_response
+            break
+
         temporal_messages_for_gamemaster.append(
             {
                 "role": "user",
                 "content": f"""
-前回の応答に対してフィードバックを与えるので，それらを踏まえて応答をやり直してください．
-「再度やり直します」などの断りは不要です．
-{"\n".join([f"feedback{i} : {feedback.comment}" for i,
+前回の応答に対していくつかフィードバックを与えるので，それらを踏まえて応答をやり直してください．
+「再度やり直します」などの断りは不要です．以下はフィードバックの内容です.
+{"\n".join([f"{i}. : {feedback.comment}" for i,
                     feedback in enumerate(feedbacks)])}
                 """}
         )
-
-        if not feedbacks:  # 全員がOKを出したら終了
-            final_response = temporal_response
-            break
     else:  # 回数上限に達した場合は最終応答を生成
         final_response = client.chat.completions.create(
             model="gpt-4o",
@@ -178,8 +228,6 @@ def generate_response(no_debate=False) -> ChatCompletion:
             tools=tools,
         )
 
-    current_message_index = len(messages)
-    feedback_message_logs[current_message_index] = temporal_messages_for_gamemaster[current_message_index+1:]
     messages.append(final_response.choices[0].message.to_dict())
 
     print(f"{MAGENTA}GM : {final_response.choices[0].message.content}{RESET}")
@@ -198,10 +246,11 @@ def save_session():
     for i, message in enumerate(messages):
         feedback = feedback_message_logs.get(i, None)
         logs.append(
-            {"message": message, "feedback": feedback}
+            {"message": message, "feedback_history": feedback}
         )
 
-    output_text = json.dumps(logs, ensure_ascii=False, indent=2)
+    output_text = json.dumps(
+        logs, default=feedback_to_dict, ensure_ascii=False, indent=2)
 
     with open(file_path, "w") as f:
         f.write(output_text)
