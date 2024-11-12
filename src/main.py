@@ -62,23 +62,39 @@ GM_instruction = f"""
 {character_text}
 """
 
+
+class Assistant:
+    def __init__(self, instruction):
+        self.instruction = instruction
+
+    def init_history(self):
+        self.history = [
+            {
+                "role": "system",
+                "content": self.instruction}
+        ]
+
+    def add_message(self, message):
+        self.history.append(message)
+
+
 assistants = [
-    f"""
+    Assistant(f"""
 あなたはTRPGのゲームマスターの補佐役です.
 まずゲームマスターである私のプレイヤーに対する応答について参照するべきルールがあればそれを引用してcommentで補足してください.
 そして，私の応答が該当のルールに則っていない場合はcommentで修正方法を提案してください.
 commentは日本語でお願いします．
 修正すべき点がなければresultにTrue，修正するべき点があればresultにFalseを返してください.
 ルールブックの内容は以下の通りです．
-{rulebook_text}""",
-    f"""
+{rulebook_text}"""),
+    Assistant(f"""
 あなたはTRPGのゲームマスターの補佐役です.
 まず，ゲームマスターである私のプレイヤーに対する応答についてシナリオに関連する内容があればシナリオの該当部分を引用してcommentで補足してください.
 そして，私の応答がシナリオと矛盾していたり，大きく逸脱している場合はcommentで修正方法を提案してください.
 commentは日本語でお願いします．
 修正すべき点がなければresultにTrue，修正するべき点があればresultにFalseを返してください.
 シナリオの内容は以下の通りです．
-{scenario_text}"""
+{scenario_text}"""),
 ]
 
 messages = [
@@ -125,16 +141,16 @@ def feedback_to_dict(obj):
     raise
 
 
-async def generate_multiple_feedbacks(messages_list: list[list[dict]]):
+async def generate_multiple_feedbacks(assistans: list[Assistant]):
     client = AsyncOpenAI()
 
     feedback_responses = await asyncio.gather(
         *[
             client.beta.chat.completions.parse(
                 model="gpt-4o",
-                messages=messages,
+                messages=assistant.history,
                 response_format=Feedback
-            ) for messages in messages_list
+            ) for assistant in assistans
         ]
     )
     feedback = [
@@ -147,16 +163,15 @@ def generate_response(no_debate=False) -> ChatCompletion:
 
     print(f"{GRAY}GM: 考え中...{RESET}", end="\r")
     temporal_messages_for_gamemaster = messages.copy()
-    temporal_messages_for_assistants = [
-        [
-            {
-                "role": "system",
-                "content": assistant},
+
+    for assistant in assistants:
+        assistant.init_history(messages)
+        assistant.add_message(
             {
                 "role": "user",
                 "content": f"以下は直近のゲームマスターとプレイヤーのやり取りです\n{stringfy_messages(messages[-2:])}"
-            },
-        ] for assistant in assistants]
+            }
+        )
 
     # feedback loop
     for i in range(MAX_FEEDBACK if not no_debate else 0):
@@ -177,8 +192,8 @@ def generate_response(no_debate=False) -> ChatCompletion:
         temporal_message.pop("tool_calls", None)
         temporal_messages_for_gamemaster.append(temporal_message)
 
-        for j in range(len(assistants)):
-            temporal_messages_for_assistants[j].append(
+        for assistant in assistants:
+            assistant.add_message(
                 {
                     "role": "user",
                     "content": f"以下はこれに続くGMの応答です「{temporal_message["content"]}」"
@@ -188,13 +203,12 @@ def generate_response(no_debate=False) -> ChatCompletion:
                 }
             )
 
-        feedbacks = asyncio.run(generate_multiple_feedbacks(
-            temporal_messages_for_assistants))
+        feedbacks = asyncio.run(generate_multiple_feedbacks(assistants))
 
         for j, feedback in enumerate(feedbacks):
             debug_print(
                 f"feedback{i}-{j} : {'OK' if feedback.result else 'NG'}\n{feedback.comment}\n")
-            temporal_messages_for_assistants[j].append(
+            assistants[j].add_message(
                 {
                     "role": "assistant",
                     "content": feedback.comment,
