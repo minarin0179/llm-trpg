@@ -69,14 +69,18 @@ def handle_toolcall(response: ChatCompletion, messages: list):
 
 
 class Dicebot:
-    def __init__(self, id: str = "DiceBot"):
+    def __init__(self, id: str = "DiceBot", no_check: bool = False):
+
+        self.id = id
+
+        if no_check:
+            return
+
         system_info = requests.get(
             f"{os.environ["BCDICE_API_URL"]}/v2/game_system/{id}").json()
 
         if system_info["ok"] == False:
             raise ValueError(f"System {id} not found")
-
-        self.id = id
 
     def exec(self, command: str) -> Dict[str, Any]:
         params = {
