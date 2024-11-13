@@ -10,6 +10,7 @@ from utils.io import user_input
 from utils.ansi import GRAY, RESET,  MAGENTA
 from utils.logger import Logger
 from utils.notion import save_to_notion
+from utils.assistant import Assistant
 from openai.types.chat.chat_completion import ChatCompletion
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
@@ -61,21 +62,6 @@ GM_instruction = f"""
 {scenario_text}
 {character_text}
 """
-
-
-class Assistant:
-    def __init__(self, instruction):
-        self.instruction = instruction
-
-    def init_history(self):
-        self.history = [
-            {
-                "role": "system",
-                "content": self.instruction}
-        ]
-
-    def add_message(self, message):
-        self.history.append(message)
 
 
 assistants = [
@@ -165,7 +151,7 @@ def generate_response(no_debate=False) -> ChatCompletion:
     temporal_messages_for_gamemaster = messages.copy()
 
     for assistant in assistants:
-        assistant.init_history(messages)
+        assistant.init_history()
         assistant.add_message(
             {
                 "role": "user",
