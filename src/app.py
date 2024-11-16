@@ -123,11 +123,14 @@ if user_input or submit_tool_call:
 with st.sidebar:
     # チャット履歴の保存
     if st.button("履歴をサーバーに保存"):
-        with st.status("セッション記録をサーバーに送信しています...") as status:
-            response = save_session(
-                state.messages, state.feedback_message_logs)
-            st.write(response.text)
-            status.update(
-                label="セッション記録が正常に送信されました" if response.status_code == 200 else "セッション記録の送信に失敗しました",
-                state="complete" if response.status_code == 200 else "error"
-            )
+        msg = st.toast("セッション記録をサーバーに送信しています...", icon="ℹ️")
+        response = save_session(
+            state.messages, state.feedback_message_logs)
+
+        if response.status_code == 200:
+            msg.toast("セッション記録が正常に送信されました", icon="✅")
+        else:
+            msg.toast("セッション記録の送信に失敗しました", icon="❌")
+
+    # フィードバックの表示
+    st.toggle("フィードバックを表示", value=False, key="show_feedback")
