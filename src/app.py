@@ -2,21 +2,37 @@ import os
 import json
 import streamlit as st
 import openai
-
+from prompts import init_messages, load_assistants
 from utils.diceroll import DICEROOL_TOOL, Dicebot
+from utils.notion import save_session
+from utils.response import generate_response
+
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-dicebot = Dicebot()
+dicebot = Dicebot("Emoklore")
 
+
+assistants = load_assistants()
+
+# streamlitの設定
 st.set_page_config(page_title="LLM-TRPG", page_icon="🎲")
-
 state = st.session_state
 
+if "feedback_message_logs" not in state:
+    state.feedback_message_logs = {}
+
 if "messages" not in state:
-    state.messages = [
-        {"role": "system", "content": "You are a helpful assistant."}
-    ]
+    state.messages = init_messages()
+    # state.messages = [
+    #     {"role": "system", "content": "you are a helpful assistant"}]
+
+    generate_response(
+        messages=state.messages,
+        assistants=assistants,
+        max_feedback=0,
+        feedback_message_logs=state.feedback_message_logs
+    )
 
 
 def show_message(message):
@@ -37,7 +53,8 @@ def show_message(message):
                 st.error(f"ダイスロールの実行に失敗しました")
 
 
-for message in state.messages:
+# チャット履歴の表示
+for message in state.messages[len(init_messages()):]:
     show_message(message)
 
 
@@ -56,11 +73,13 @@ if tool_calls := state.messages[-1].get("tool_calls", None):
     if submit_tool_call := st.button("OK"):
         for tool_call, command in zip(tool_calls, commands):
             result = dicebot.exec(command)
-            state.messages.append({
+            message = {
                 "role": "tool",
                 "content": json.dumps(result),
                 "tool_call_id": tool_call["id"]
-            })
+            }
+            state.messages.append(message)
+            show_message(message)
 
 user_input = st.chat_input("メッセージを送信")
 
@@ -78,22 +97,37 @@ if user_input or submit_tool_call:
             {"role": "user", "content": user_input})
 
         show_message({"role": "user", "content": user_input})
+        user_input.update(disabled=True)
 
     for message in state.messages:
         print(message, end="\n---\n")
 
     with st.spinner("GMの返信を待っています..."):
-        response = openai.chat.completions.create(
-            model="gpt-4o",
+        # response = openai.chat.completions.create(
+        #     model="gpt-4o",
+        #     messages=state.messages,
+        #     tools=[DICEROOL_TOOL]
+        # )
+
+        # message = response.choices[0].message.to_dict()
+        # state.messages.append(message)
+        generate_response(
             messages=state.messages,
-            tools=[DICEROOL_TOOL]
+            assistants=assistants,
+            max_feedback=3,
+            feedback_message_logs=state.feedback_message_logs
         )
-        message = response.choices[0].message.to_dict()
-        state.messages.append(message)
         st.rerun()
 
-# チャット履歴の保存
-if st.button("Save"):
-    with open("chat_history.json", "w") as f:
-        json.dump(state.messages, f)
-    st.write("チャット履歴を保存しました")
+# サイドバー
+with st.sidebar:
+    # チャット履歴の保存
+    if st.button("履歴をサーバーに保存"):
+        with st.status("セッション記録をサーバーに送信しています...") as status:
+            response = save_session(
+                state.messages, state.feedback_message_logs)
+            st.write(response.text)
+            status.update(
+                label="セッション記録が正常に送信されました" if response.status_code == 200 else "セッション記録の送信に失敗しました",
+                state="complete" if response.status_code == 200 else "error"
+            )
