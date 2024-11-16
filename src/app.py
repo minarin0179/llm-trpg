@@ -12,7 +12,6 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 dicebot = Dicebot("Emoklore")
 
-
 assistants = load_assistants()
 
 # streamlitの設定
@@ -24,9 +23,6 @@ if "feedback_message_logs" not in state:
 
 if "messages" not in state:
     state.messages = init_messages()
-    # state.messages = [
-    #     {"role": "system", "content": "you are a helpful assistant"}]
-
     generate_response(
         messages=state.messages,
         assistants=assistants,
@@ -97,20 +93,11 @@ if user_input or submit_tool_call:
             {"role": "user", "content": user_input})
 
         show_message({"role": "user", "content": user_input})
-        user_input.update(disabled=True)
 
     for message in state.messages:
         print(message, end="\n---\n")
 
     with st.spinner("GMの返信を待っています..."):
-        # response = openai.chat.completions.create(
-        #     model="gpt-4o",
-        #     messages=state.messages,
-        #     tools=[DICEROOL_TOOL]
-        # )
-
-        # message = response.choices[0].message.to_dict()
-        # state.messages.append(message)
         generate_response(
             messages=state.messages,
             assistants=assistants,
@@ -131,6 +118,3 @@ with st.sidebar:
             msg.toast("セッション記録が正常に送信されました", icon="✅")
         else:
             msg.toast("セッション記録の送信に失敗しました", icon="❌")
-
-    # フィードバックの表示
-    st.toggle("フィードバックを表示", value=False, key="show_feedback")
