@@ -77,7 +77,7 @@ def save_to_notion(title: str, contents: str) -> requests.Response:
     return response
 
 
-def save_session(messages: list[dict], feedback_message_logs: dict[int, list]) -> None:
+def save_session(messages: list[dict], feedback_message_logs: dict[int, list], params: dict) -> None:
     jst = timezone(timedelta(hours=9))
     formatted_datetime = datetime.datetime.now(jst).strftime("%y%m%d%H%M")
     filename = f"session_{formatted_datetime}"
@@ -90,8 +90,13 @@ def save_session(messages: list[dict], feedback_message_logs: dict[int, list]) -
             {"message": message, "feedback_history": feedback}
         )
 
+    result = {
+        "params": params,
+        "logs": logs
+    }
+
     output_text = json.dumps(
-        logs, default=feedback_to_dict, ensure_ascii=False, indent=2)
+        result, default=feedback_to_dict, ensure_ascii=False, indent=2)
 
     with open(file_path, "w") as f:
         f.write(output_text)
