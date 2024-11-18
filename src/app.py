@@ -14,6 +14,8 @@ dicebot = Dicebot("Emoklore")
 
 assistants = load_assistants()
 
+max_feedback = st.query_params.get("max_feedback", 3)
+
 # streamlitの設定
 st.set_page_config(page_title="LLM-TRPG", page_icon="🎲")
 state = st.session_state
@@ -101,7 +103,7 @@ if user_input or submit_tool_call:
         generate_response(
             messages=state.messages,
             assistants=assistants,
-            max_feedback=3,
+            max_feedback=max_feedback,
             feedback_message_logs=state.feedback_message_logs
         )
         st.rerun()
