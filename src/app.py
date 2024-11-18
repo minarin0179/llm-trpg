@@ -14,7 +14,7 @@ dicebot = Dicebot("Emoklore")
 
 assistants = load_assistants()
 
-max_feedback = st.query_params.get("max_feedback", 3)
+max_feedback = int(st.query_params.get("max_feedback", 3))
 
 # streamlitの設定
 st.set_page_config(page_title="LLM-TRPG", page_icon="🎲")
@@ -114,7 +114,7 @@ with st.sidebar:
     if st.button("履歴をサーバーに保存"):
         msg = st.toast("セッション記録をサーバーに送信しています...", icon="ℹ️")
         response = save_session(
-            state.messages, state.feedback_message_logs)
+            state.messages, state.feedback_message_logs, params=st.query_params.to_dict())
 
         if response.status_code == 200:
             msg.toast("セッション記録が正常に送信されました", icon="✅")
