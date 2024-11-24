@@ -4,7 +4,7 @@ import streamlit as st
 import openai
 from prompts import init_messages, load_assistants
 from utils.diceroll import DICEROOL_TOOL, Dicebot
-from utils.notion import save_session
+from utils.notion import save_session, format_session
 from utils.response import generate_response
 
 
@@ -111,12 +111,21 @@ if user_input or submit_tool_call:
 # サイドバー
 with st.sidebar:
     # チャット履歴の保存
-    if st.button("履歴をサーバーに保存"):
-        msg = st.toast("セッション記録をサーバーに送信しています...", icon="ℹ️")
-        response = save_session(
-            state.messages, state.feedback_message_logs, params=st.query_params.to_dict())
+    # if st.button("履歴をサーバーに保存"):
+    #     msg = st.toast("セッション記録をサーバーに送信しています...", icon="ℹ️")
+    #     response = save_session(
+    #         state.messages, state.feedback_message_logs, params=st.query_params.to_dict())
 
-        if response.status_code == 200:
-            msg.toast("セッション記録が正常に送信されました", icon="✅")
-        else:
-            msg.toast("セッション記録の送信に失敗しました", icon="❌")
+    #     if response.status_code == 200:
+    #         msg.toast("セッション記録が正常に送信されました", icon="✅")
+    #     else:
+    #         msg.toast("セッション記録の送信に失敗しました", icon="❌")
+
+    # チャット履歴のダウンロード
+    st.download_button(
+        label="ログ出力",
+        data=format_session(
+            state.messages, state.feedback_message_logs, st.query_params.to_dict()),
+        file_name="log.json",
+        mime="application/json"
+    )
