@@ -56,5 +56,5 @@ commentは日本語でお願いします．
 def init_messages():
     return [
         {"role": "system", "content": load_GM_instruction()},
-        {"role": "user", "content": "それではセッションを始めましょう.まずはシナリオ概要の説明と導入をお願いします."},
+        {"role": "user", "content": "それではセッションを始めましょう.プレイヤーは私一人です．まずはシナリオ概要の説明と導入をお願いします."},
     ]
