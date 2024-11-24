@@ -46,83 +46,63 @@ def create_page(title: str) -> requests.Response:
     return response
 
 
-def create_long_code_block(page_id, code_string, language='python'):
-    """
-    非常に長いコードブロックを1つのブロックとしてNotionページに追加します。
+def add_blocks(page_id: str, contents: str) -> requests.Response:
+    url = f"{NOTION_API_ENDPOINT}blocks/{page_id}/children"
 
-    Args:
-        token (str): Notion統合のシークレットトークン。
-        page_id (str): コードブロックを追加するページのID。
-        code_string (str): 追加するコード全体の文字列。
-        language (str): コードの言語（デフォルトは'python'）。
-    """
+    contents = split_text(contents)
 
-    # テキストを適切なサイズに分割（例：1,000文字ごと）
-    max_text_size = 1000  # 1つのリッチテキストオブジェクトの最大文字数
-    code_chunks = [code_string[i:i+max_text_size]
-                   for i in range(0, len(code_string), max_text_size)]
-
-    # リッチテキストオブジェクトのリストを作成
-    rich_text_objects = []
-    for chunk in code_chunks:
-        rich_text = {
-            "type": "text",
-            "text": {
-                "content": chunk
-            }
-        }
-        rich_text_objects.append(rich_text)
-
-    # コードブロックを作成
-    code_block = {
-        "object": "block",
-        "type": "code",
-        "code": {
-            "text": rich_text_objects,
-            "language": language
-        }
-    }
-
-    # ページにブロックを追加
-    url = f'https://api.notion.com/v1/blocks/{page_id}/children'
-    payload = {
-        "children": [code_block]
-    }
-
-    response = requests.patch(url, headers=HEADERS, json=payload)
-
-    return response
-
-
-def add_text_to_code_block(page_id: str, block_id: str, text: str) -> requests.Response:
-    url = f"{NOTION_API_ENDPOINT}blocks/{block_id}/children"
-    data = {
-        "object": "block",
-        "type": "code",
-        "code": {
-            "rich_text": [
-                {
-                    "type": "text",
-                    "text": {
-                        "content": text
-                    }
-                }
-            ],
-            "language": "json"
-        }
-    }
-
-    response = requests.patch(url, headers=HEADERS, data=json.dumps(data))
+    stride = 10
+    for i in range(0, len(contents), stride):
+        chunk = contents[i:i+stride]
+        payload = {"children": chunk}
+        response = requests.patch(
+            url, headers=HEADERS, data=json.dumps(payload))
 
     return response
 
 
 def save_to_notion(title: str, contents: str) -> requests.Response:
-
+    print("セッション記録をサーバーに送信中です、しばらくお待ちください...")
     page = create_page(title)
     page_id = page.json()["id"]
+    if page.status_code != 200:
+        print("ページの作成に失敗しました:", page.status_code, page.text)
+        return
+    print("ページが正常に作成されました")
 
-    response = create_long_code_block(page_id, contents, language='json')
+    children = {
+        "children": [
+            {
+                "object": "block",
+                "type": "code",
+                "code": {
+                    "rich_text": [
+                        {
+                            "type": "text",
+                            "text": {
+                                "content": contents
+                            }
+                        }
+                    ],
+                    "language": "json"
+                }
+            }
+
+        ]
+    }
+
+    add_blocks(page_id, contents)
+
+    response = requests.post(
+        NOTION_API_ENDPOINT, headers=HEADERS, data=json.dumps(data))
+
+    if response.status_code == 200:
+        print(f"セッション記録が正常に送信されました ({i + 1}/{len(chunks)})")
+    else:
+        print("セッション記録の送信に失敗しました:", response.status_code, response.text)
+
+    response = requests.post(
+        NOTION_API_ENDPOINT, headers=HEADERS, data=json.dumps(data))
 
     if response.status_code == 200:
         print("セッション記録が正常に送信されました")
