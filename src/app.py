@@ -14,7 +14,7 @@ dicebot = Dicebot("Emoklore")
 
 assistants = load_assistants()
 
-max_feedback = int(st.query_params.get("max_feedback", 3))
+max_feedback = int(st.query_params.get("max_feedback", 0))
 
 # streamlitの設定
 st.set_page_config(page_title="LLM-TRPG", page_icon="🎲")
@@ -42,7 +42,10 @@ def show_message(message):
         case "user":
             st.chat_message("user").write(content)
         case "assistant":
-            st.chat_message("assistant").write(content)
+            if content == "exit":
+                st.success("セッションは完了しました\n左のサイドバーからログをダウンロードして提出してください")
+            else:
+                st.chat_message("assistant").write(content)
         case "tool":
             result = json.loads(content)
             if result["ok"]:
