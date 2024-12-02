@@ -1,21 +1,26 @@
+import streamlit as st
 from utils.file import read_text_file
+from classes.settings import Settings
 from setting import SCENARIO_PATH, CHARACTER_PATH, RULEBOOK_PATH, GAME_SYSTEM
 from classes.assistant import Assistant
 
-scenario_text = f"シナリオの内容は以下の通りです．\n{read_text_file(SCENARIO_PATH)}"
-character_text = f"プレイヤーのキャラクターの情報は以下の通りです.\n{
-    read_text_file(CHARACTER_PATH)}"
-rulebook_text = f"ルールブックの内容は以下の通りです.\n{read_text_file(RULEBOOK_PATH)}"
 
 shared_prompt = f"""
 回答は常に日本語でお願いします．
 """
 
 
-def load_GM_instruction():
+def load_GM_instruction(settings: Settings):
+
+    scenario_text = f"シナリオの内容は以下の通りです．\n{
+        read_text_file(settings["scenario_path"])}"
+    character_text = f"プレイヤーのキャラクターの情報は以下の通りです.\n{
+        read_text_file(settings['character_path'])}"
+    rulebook_text = f"ルールブックの内容は以下の通りです.\n{
+        read_text_file(settings['rulebook_path'])}"
     return f"""
 あなたはTRPGのゲームマスターです.
-今から{GAME_SYSTEM}のシナリオを一緒に遊びましょう．
+今から{settings['game_system']}のシナリオを一緒に遊びましょう．
 「了解しました」などといった要求に対する返答を都度行う必要はありません．
 また出力にmarkdown記法を用いてはいけません．
 ゲームマスターを行うにあたって以下のような点に留意してください．
@@ -30,7 +35,13 @@ def load_GM_instruction():
 """
 
 
-def load_assistants():
+def load_assistants(settings):
+    rulebook_text = f"ルールブックの内容は以下の通りです.\n{
+        read_text_file(settings["rulebook_path"])}"
+
+    scenario_text = f"シナリオの内容は以下の通りです．\n{
+        read_text_file(settings['scenario_path'])}"
+
     return [
         Assistant(f"""
 あなたはTRPGのゲームマスターの補佐役です.
@@ -53,8 +64,9 @@ commentは日本語でお願いします．
     ]
 
 
-def init_messages():
+@st.cache_data
+def init_messages(settings: Settings):
     return [
-        {"role": "system", "content": load_GM_instruction()},
+        {"role": "system", "content": load_GM_instruction(settings)},
         {"role": "user", "content": "それではセッションを始めましょう.プレイヤーは私一人です．まずはシナリオ概要の説明と導入をお願いします."},
     ]

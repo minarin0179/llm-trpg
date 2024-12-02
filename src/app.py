@@ -6,13 +6,13 @@ from prompts import init_messages, load_assistants
 from utils.diceroll import DICEROOL_TOOL, Dicebot
 from utils.notion import save_session, format_session
 from utils.response import generate_response
-
+from classes.settings import Settings
+from enum import Enum
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 dicebot = Dicebot("Emoklore")
 
-assistants = load_assistants()
 
 max_feedback = int(st.query_params.get("max_feedback", 3))
 
@@ -20,11 +20,43 @@ max_feedback = int(st.query_params.get("max_feedback", 3))
 st.set_page_config(page_title="LLM-TRPG", page_icon="🎲")
 state = st.session_state
 
+if "character" not in state:
+    class Characters(Enum):
+        def __str__(self) -> str:
+            return self.name
+
+        意欲的な新米探偵 = "意欲的な新米探偵.txt"
+        プライドが高い小説家 = "プライドが高い小説家.txt"
+        心優しき看護師 = "心優しき看護師.txt"
+        活発な体育系大学生 = "活発な体育系大学生.txt"
+        強運のダンサー = "強運のダンサー.txt"
+
+    with st.form("character_form"):
+        # ラジオボタンで1から5を選択
+        character = st.radio("キャラクターを選択してください", Characters, index=None)
+        print(character)
+        if character:
+            state.character = character
+            st.rerun()
+        st.form_submit_button(label='OK')
+        st.stop()
+    st.stop()
+
+settings: Settings = {
+    "character_path": f"character/{state.character.value}",
+    "game_system": "エモクロアTRPG",
+    "rulebook_path": "rulebook/emoklore.txt",
+    "scenario_path": "scenario/kisaragieki.md"
+}
+
+assistants = load_assistants(settings)
+
+
 if "feedback_message_logs" not in state:
     state.feedback_message_logs = {}
 
 if "messages" not in state:
-    state.messages = init_messages()
+    state.messages = init_messages(settings)
     generate_response(
         messages=state.messages,
         assistants=assistants,
@@ -52,7 +84,7 @@ def show_message(message):
 
 
 # チャット履歴の表示
-for message in state.messages[len(init_messages()):]:
+for message in state.messages[len(init_messages(settings)):]:
     show_message(message)
 
 
