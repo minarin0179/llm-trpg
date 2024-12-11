@@ -46,7 +46,7 @@ settings: Settings = {
     "character_path": f"character/{state.character.value}",
     "game_system": "エモクロアTRPG",
     "rulebook_path": "rulebook/emoklore.txt",
-    "scenario_path": "scenario/kisaragieki.md"
+    "scenario_path": "scenario/hasshakusama_scenario.txt"
 }
 
 assistants = load_assistants(settings)
