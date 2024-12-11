@@ -60,7 +60,9 @@ def generate_response(
 
     current_message_index = len(messages)
     feedback_message_logs[current_message_index] = [
-        {"user_input_timestamp": datetime.now().isoformat()}
+        {
+            "user_input_timestamp": datetime.now()
+            .replace(microsecond=0).isoformat()}
     ]
 
     temporal_messages_for_gamemaster = messages.copy()
