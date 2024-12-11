@@ -2,8 +2,9 @@ import asyncio
 
 from openai import OpenAI, AsyncOpenAI
 from openai.types.chat.chat_completion import ChatCompletion
+from datetime import datetime
 from classes.assistant import Assistant
-from classes.feedback import Feedback
+from classes.feedback import Feedback, FeedbackWithLog
 from utils.diceroll import DICEROOL_TOOL
 
 client = OpenAI()
@@ -23,7 +24,7 @@ def stringfy_messages(messages: list[dict]) -> str:
     return result
 
 
-async def generate_multiple_feedbacks(assistans: list[Assistant]):
+async def generate_multiple_feedbacks(assistans: list[Assistant]) -> list[FeedbackWithLog]:
 
     async_client = AsyncOpenAI()
     feedback_responses = await asyncio.gather(
@@ -35,10 +36,18 @@ async def generate_multiple_feedbacks(assistans: list[Assistant]):
             ) for assistant in assistans
         ]
     )
-    feedback = [
-        response.choices[0].message.parsed for response in feedback_responses]
 
-    return feedback
+    feedbacks = [
+        FeedbackWithLog(
+            comment=response.choices[0].message.parsed.comment,
+            result=response.choices[0].message.parsed.result,
+            created=datetime.fromtimestamp(response.created).isoformat(),
+            usage=response.usage.to_dict()
+        )
+        for response in feedback_responses
+    ]
+
+    return feedbacks
 
 
 # messagesとassistantsのhistoryは内部で更新される
@@ -48,6 +57,11 @@ def generate_response(
     max_feedback: int,
     feedback_message_logs: dict[int, list] = {}
 ) -> ChatCompletion:
+
+    current_message_index = len(messages)
+    feedback_message_logs[current_message_index] = [
+        {"user_input_timestamp": datetime.now().isoformat()}
+    ]
 
     temporal_messages_for_gamemaster = messages.copy()
     tools = [
@@ -105,12 +119,16 @@ def generate_response(
             )
 
         # フィードバックの記録
-        current_message_index = len(messages)
         if current_message_index not in feedback_message_logs:
             feedback_message_logs[current_message_index] = []
 
         feedback_message_logs[current_message_index].append(
-            {"temporal_response": temporal_response.choices[0].message.content, "feedbacks": feedbacks})
+            {
+                "temporal_response": temporal_response.choices[0].message.content,
+                "created": datetime.fromtimestamp(temporal_response.created).isoformat(),
+                "usage": temporal_response.usage.to_dict(),
+                "feedbacks": feedbacks
+            })
 
         NG_feedbacks = [
             feedback for feedback in feedbacks if not feedback.result]
@@ -135,6 +153,13 @@ def generate_response(
             messages=temporal_messages_for_gamemaster,
             tools=tools,
         )
+
+        feedback_message_logs[current_message_index].append(
+            {
+                "temporal_response": final_response.choices[0].message.content,
+                "created": datetime.fromtimestamp(final_response.created).isoformat(),
+                "usage": final_response.usage.to_dict(),
+            })
 
     messages.append(final_response.choices[0].message.to_dict())
 
