@@ -23,6 +23,8 @@ sys.stdout = Logger(".log/recent_output.log")
 
 GAME_SYSTEM = "エモクロアTPRG"
 
+model = "gpt-4o"
+
 dicebot = Dicebot("Emoklore")
 
 MAX_FEEDBACK = 3
@@ -133,7 +135,7 @@ async def generate_multiple_feedbacks(assistans: list[Assistant]):
     feedback_responses = await asyncio.gather(
         *[
             client.beta.chat.completions.parse(
-                model="gpt-4o",
+                model=model,
                 messages=assistant.history,
                 response_format=Feedback
             ) for assistant in assistans
@@ -162,7 +164,7 @@ def generate_response(no_debate=False) -> ChatCompletion:
     # feedback loop
     for i in range(MAX_FEEDBACK if not no_debate else 0):
         temporal_response = client.chat.completions.create(
-            model="gpt-4o",
+            model=model,
             messages=temporal_messages_for_gamemaster,
             tools=tools,
         )
@@ -228,7 +230,7 @@ def generate_response(no_debate=False) -> ChatCompletion:
         )
     else:  # 回数上限に達した場合は最終応答を生成
         final_response = client.chat.completions.create(
-            model="gpt-4o",
+            model=model,
             messages=temporal_messages_for_gamemaster,
             tools=tools,
         )
