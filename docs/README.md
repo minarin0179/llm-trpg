@@ -1,39 +1,37 @@
-# マルチエージェントによる TRPG GM システム
+# Multi-Agent TRPG Game Master System
 
 
+## Directory Structure
+.
+├── character : Character sheets
+├── rulebook : Rulebooks
+├── scenario : Scenarios
+└── src : Main source code
 
-## ディレクトリ構成
-.  
-├── character : キャラクターシート  
-├── rulebook : ルールブック  
-├── scenario : シナリオ  
-└── src : 本体  
-
-## 環境構築手順
-### 1. 仮想環境の作成
-Github Codespace, Devcontainer に対応
+## Setup Instructions
+### 1. Creating a Virtual Environment
+Supports Github Codespace and Devcontainer
 
 
-ブラウザで[Codespace](https://github.com/codespaces/new/minarin0179/llm-trpg?quickstart=1)で開く (無料枠で動きます) 
+Open in [Codespace](https://github.com/codespaces/new/minarin0179/llm-trpg?quickstart=1) in your browser (works within the free tier)
 ![alt text](images/codespace.png)
 
-初回起動はセットアップが走るので時間が掛かる
+Initial startup takes time as setup runs
 
-### 2. 環境変数の設定
-.env.sampleを.envにコピーして書き換える  
+### 2. Environment Variable Configuration
+Copy .env.sample to .env and modify it
 ```bash
 cp src/.env.sample src/.env
-```  
-
-あとは.env内のOPENAI_API_KEYを設定する
 ```
-OPENAI_API_KEY=(ここにAPIキーを貼り付け)
+
+Set OPENAI_API_KEY in .env
+```
+OPENAI_API_KEY=(paste your API key here)
 BCDICE_API_URL="https://bcdice.onlinesession.app"
 ```
 
-## 使用手順
-以下のコマンドで実行
+## Usage Instructions
+Execute with the following command or `run.sh`
 ```bash
-python src/main.py 
+streamlit run src/app.py
 ```
-システムを停止する際は`exit`と入力
