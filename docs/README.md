@@ -2,11 +2,11 @@
 
 
 ## Directory Structure
-.
-├── character : Character sheets
-├── rulebook : Rulebooks
-├── scenario : Scenarios
-└── src : Main source code
+.  
+├── character : Character sheets  
+├── rulebook : Rulebooks  
+├── scenario : Scenarios  
+└── src : Main source code  
 
 ## Setup Instructions
 ### 1. Creating a Virtual Environment
